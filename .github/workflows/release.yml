@@ -1,0 +1,110 @@
+on:
+  push:
+    branches:
+      - "master"
+    tags:
+      - "v*"
+
+env:
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+
+      - run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gcc-mingw-w64-x86-64
+
+      - uses: actions-rs/toolchain@v1.0.7
+        with:
+          toolchain: stable
+          components: clippy
+          override: true
+          target: x86_64-unknown-linux-gnu
+
+      - uses: actions-rs/toolchain@v1.0.7
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-gnu
+
+      - name: cache dependencies
+        uses: Swatinem/rust-cache@v2.7.1
+
+      - name: clippy check
+        uses: actions-rs/clippy-check@v1.0.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+
+      - name: install cargo-license
+        uses: actions-rs/cargo@v1.0.3
+        with:
+          command: install
+          args: cargo-license
+
+      - name: compile for unit test
+        uses: actions-rs/cargo@v1.0.3
+        with:
+          command: test
+          args: --no-run --locked
+
+      - name: unit test
+        uses: actions-rs/cargo@v1.0.3
+        with:
+          command: test
+
+      - run: |
+          cargo build --release --target x86_64-unknown-linux-gnu
+          cargo build --release --target x86_64-pc-windows-gnu
+          mkdir dm-dss-replayer
+          cargo license \
+            --authors \
+            --do-not-bundle \
+            --avoid-dev-deps \
+            --avoid-build-deps \
+            --filter-platform x86_64-pc-windows-gnu \
+              > dm-dss-replayer/CREDITS
+          VERSION_NAME=${GITHUB_REF##*/}
+          if [[ $VERSION_NAME == "master" ]]; then
+              VERSION_NAME=$(git rev-parse --short HEAD)
+          elif [[ ${VERSION_NAME:0:1} == "v" ]]; then
+              VERSION_NAME=${VERSION_NAME:1}
+          fi
+          echo "$VERSION_NAME" > dm-dss-replayer/VERSION.txt
+          cp LICENSE README.md dm-dss-replayer/
+          cp target/x86_64-pc-windows-gnu/release/dm-dss-replayer.exe dm-dss-replayer/
+          zip -r dm-dss-replayer-windows.zip dm-dss-replayer
+          rm dm-dss-replayer/*.exe
+          cargo license \
+            --authors \
+            --do-not-bundle \
+            --avoid-dev-deps \
+            --avoid-build-deps \
+            --filter-platform x86_64-unknown-linux-gnu \
+              > dm-dss-replayer/CREDITS
+          cp target/x86_64-unknown-linux-gnu/release/dm-dss-replayer dm-dss-replayer/
+          zip -r dm-dss-replayer-linux.zip dm-dss-replayer
+
+      - name: pre-release
+        uses: marvinpinto/action-automatic-releases@latest
+        if: "! startsWith(github.ref, 'refs/tags/')"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Development Build"
+          files: |
+            dm-dss-replayer-windows.zip
+            dm-dss-replayer-linux.zip
+
+      - name: tagged-release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dm-dss-replayer-windows.zip
+            dm-dss-replayer-linux.zip
