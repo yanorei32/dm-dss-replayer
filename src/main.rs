@@ -1,11 +1,11 @@
 use chrono::NaiveDateTime;
+use clap::Parser;
 use futures_util::{SinkExt, StreamExt};
 use once_cell::sync::OnceCell;
 use std::{ffi::OsStr, fs, net::SocketAddr, time::Duration};
 use tap::Tap;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::protocol::Message;
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -36,13 +36,12 @@ async fn main() {
         .unwrap()
         .tap_mut(|dir| dir.push("json"));
 
-    let mut files: Vec<_> = fs::read_dir(&json_dir)
+    let files: Vec<_> = fs::read_dir(&json_dir)
         .expect("Failed to open json dir")
         .map(|f| f.unwrap())
         .filter(|v| v.path().extension().is_some_and(|v| v == "json"))
-        .collect();
-
-    files.sort_by_cached_key(|v| v.path());
+        .collect::<Vec<_>>()
+        .tap_mut(|files| files.sort_by_cached_key(|v| v.path()));
 
     let events: Vec<_> = files
         .iter()
@@ -100,7 +99,11 @@ async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr) {
 
     println!("Connected: {addr}");
     for e in events {
-        println!("Send {} to {addr} after {} seconds", e.filename, e.offset.as_secs());
+        println!(
+            "Send {} to {addr} after {} seconds",
+            e.filename,
+            e.offset.as_secs()
+        );
         tokio::time::sleep(e.offset).await;
         tx.send(Message::Text(e.content.to_owned())).await.unwrap();
     }
