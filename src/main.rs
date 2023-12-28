@@ -1,11 +1,14 @@
+use axum::{
+    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    response::Response,
+    Router,
+};
 use chrono::NaiveDateTime;
 use clap::Parser;
-use futures_util::{SinkExt, StreamExt};
 use once_cell::sync::OnceCell;
 use std::{ffi::OsStr, fs, net::SocketAddr, time::Duration};
 use tap::Tap;
-use tokio::net::{TcpListener, TcpStream};
-use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio::net::TcpListener;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -83,32 +86,36 @@ async fn main() {
     let listener = TcpListener::bind(args.listen).await.unwrap();
     println!("Listen at {}", args.listen);
 
-    while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(handle_connection(stream, addr));
-    }
+    axum::serve(listener, app()).await.unwrap();
 }
 
-async fn handle_connection(raw_stream: TcpStream, addr: SocketAddr) {
-    let ws_stream = tokio_tungstenite::accept_async(raw_stream)
-        .await
-        .expect("Error during the websocket handshake occurred");
+fn app() -> Router {
+    Router::new().fallback(handler)
+}
 
-    let (mut tx, _rx) = ws_stream.split();
+async fn handler(ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(handle_socket)
+}
 
+async fn handle_socket(mut socket: WebSocket) {
     let events = EVENTS.get().unwrap();
+    let id: u8 = rand::random();
 
-    println!("Connected: {addr}");
+    println!("Connected {id:03}");
     for e in events {
         println!(
-            "Send {} to {addr} after {} seconds",
+            "Send {} to {id:03} after {} seconds",
             e.filename,
             e.offset.as_secs()
         );
         tokio::time::sleep(e.offset).await;
-        tx.send(Message::Text(e.content.to_owned())).await.unwrap();
+        socket
+            .send(Message::Text(e.content.to_owned()))
+            .await
+            .unwrap();
     }
 
-    println!("All events are sent for {addr}");
+    println!("All events are sent for {id:03}");
 
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
