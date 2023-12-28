@@ -9,7 +9,6 @@ edition = "2021"
 axum = { version = "0.7.2", features = ["ws"] }
 chrono = "0.4.31"
 clap = { version = "4.4.11", features = ["derive"] }
-futures-util = "0.3.30"
 once_cell = "1.19.0"
 rand = "0.8.5"
 tap = "1.0.1"
