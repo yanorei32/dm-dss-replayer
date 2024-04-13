@@ -1,3 +1,3 @@
 # DM DSS Replayer
 
-This is a Debug tool for [Team-Fruit/EEWBot](https://github.com/Team-Fruit/EEWBot).
+This is a Debug tool for [EEWBot/EEWBot](https://github.com/EEWBot/EEWBot).
