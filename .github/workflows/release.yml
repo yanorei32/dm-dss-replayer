@@ -90,7 +90,7 @@ jobs:
           zip -r dm-dss-replayer-linux.zip dm-dss-replayer
 
       - name: pre-release
-        uses: softprops/action-gh-release@v2.0.5
+        uses: softprops/action-gh-release@v2.0.6
         if: "! startsWith(github.ref, 'refs/tags/')"
         with:
           tag_name: "latest"
@@ -101,7 +101,7 @@ jobs:
             dm-dss-replayer-linux.zip
 
       - name: tagged-release
-        uses: softprops/action-gh-release@v2.0.5
+        uses: softprops/action-gh-release@v2.0.6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
